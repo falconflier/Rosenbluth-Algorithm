@@ -8,6 +8,21 @@ import imageio
 epsilon = 1E-014
 
 
+# Class that holds information and displays it
+class Graph:
+    # Method to allow people to record data
+    def record(self, x, y):
+        self.info[0].append(x)
+        self.info[1].append(y)
+
+    def graphit(self):
+        plt.scatter(self.info[0][:], self.info[1][:])
+        plt.show()
+
+    def __init__(self):
+        self.info = [[], []]
+
+
 class Magnet:
     def display(self):
         # Blue is down, green is up
@@ -231,7 +246,12 @@ def alg_test(num_itr, temp, random=True, save_images=False):
 
 
 if __name__ == '__main__':
-    is_random = True
-    save_images = False
-    alg_test(1000, 00.1, is_random, save_images)
+    graph = Graph()
+    for i in range(10):
+        graph.record(i, np.exp(i))
+    graph.graphit()
+
+    # is_random = True
+    # save_images = False
+    # alg_test(1000, 00.1, is_random, save_images)
     # gif_maker("Images", "order_formation")
