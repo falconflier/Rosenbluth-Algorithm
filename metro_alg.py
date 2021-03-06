@@ -11,19 +11,47 @@ epsilon = 1E-014
 # Class that holds information and displays it
 class Graph:
     # Method to allow people to record data
-    def record(self, x, y):
+    def graph_record(self, x, y):
         self.info[0].append(x)
         self.info[1].append(y)
 
+    # Changes the name of the plot
+    def rename(self, title=None, x_label=None, y_label=None):
+        if title is not None:
+            self.title = title
+        if x_label is not None:
+            self.x_label = x_label
+        if y_label is not None:
+            self.y_label = y_label
+
+    # Displays the plot to the user
     def graphit(self):
+        plt.title(self.title)
+        plt.xlabel(self.x_label)
+        plt.ylabel(self.y_label)
         plt.scatter(self.info[0][:], self.info[1][:])
         plt.show()
 
-    def __init__(self):
+    def __init__(self, title="Insert title here", x_label="Iteration", y_label="Energy"):
         self.info = [[], []]
+        self.title = title
+        self.x_label = x_label
+        self.y_label = y_label
 
 
 class Magnet:
+    # Saves things in the graph so that we can remember them for later
+    def record_state(self):
+        self.energy_graph.graph_record(self.iteration, self.energy)
+        self.magnetization_graph.graph_record(self.iteration, 2 * self.num_up - self.x_dim * self.y_dim)
+        self.iteration += 1
+
+    # Shows the magnetization and energy graphs
+    def display_state(self):
+        self.energy_graph.graphit()
+        self.magnetization_graph.graphit()
+
+    # Shows the magnet as a matplotlib display, with green as up and blue as down
     def display(self):
         # Blue is down, green is up
         cmap = colors.ListedColormap(['blue', 'green'])
@@ -47,6 +75,7 @@ class Magnet:
         plt.savefig(fname)
         plt.close()
 
+    # Gives us general information about the current state of the magnet
     def gen_info(self):
         print("%%%%%%%%%%%%%%%%%%%%% General Information About Magnet: %%%%%%%%%%%%%%%%%%%%%")
         num_spins = self.x_dim * self.y_dim
@@ -55,6 +84,7 @@ y-dimension " + str(self.y_dim))
         print(str(self.num_up) + " spins are up (" + str(self.num_up / num_spins * 100) + "% of the total)")
         print("Total energy of the magnet is " + str(self.energy) + '\n')
 
+    # Flips the specified spin, and updates the energy
     def flip_spin(self, x, y):
         if x < 0 or x >= self.x_dim or y < 0 or y >= self.y_dim:
             print("invalid index")
@@ -100,6 +130,13 @@ y-dimension " + str(self.y_dim))
         return energy
 
     def __init__(self, x, y, preset=[[-2]]):
+        # This will record the information we need about energy
+        self.energy_graph = Graph(title="Energy vs Iterations")
+        # This will record the information we need about magnetization
+        self.magnetization_graph = Graph(title="Magnetization vs Iterations")
+        # This will give us the x-coordinate of the graph
+        self.iteration = 0
+
         if type(x) != int or type(y) != int or x < 0 or y < 0:
             print("invalid starting dimensions")
             return
@@ -174,6 +211,8 @@ def r_r_help(mag, temp, im_idx=None, debug=None):
 
     # If the energy is less than 0, go ahead
     if initial > mag.get_energy():
+        # Record the new energy
+        mag.record_state()
         if debug is not None:
             debug.write("Decreased Energy\n")
     # This is to avoid divide by zero errors
@@ -192,6 +231,8 @@ def r_r_help(mag, temp, im_idx=None, debug=None):
                 debug.write("State stayed the same; r was larger than the boltzmann factor, ")
             mag.flip_spin(x, y)
         else:
+            # Record the new energy
+            mag.record_state()
             if debug is not None:
                 debug.write("State was changed; r was lower than the boltzmann factor, ")
         if debug is not None:
@@ -203,7 +244,7 @@ def r_r_help(mag, temp, im_idx=None, debug=None):
 
 
 # Tries to run the rosenbluth algorithm
-def alg_test(num_itr, temp, random=True, save_images=False):
+def alg(num_itr, temp, random=True, save_images=False):
     # Create a preset that is up on one half and down on the other
     if not random:
         preset = (-1 * np.ones([100, 100]))
@@ -246,12 +287,12 @@ def alg_test(num_itr, temp, random=True, save_images=False):
 
 
 if __name__ == '__main__':
-    graph = Graph()
-    for i in range(10):
-        graph.record(i, np.exp(i))
-    graph.graphit()
+    # graph = Graph("Energy by iterations", "Iteration", "Energy")
+    # for i in range(10):
+    #     graph.record(i, np.exp(i))
+    # graph.graphit()
 
-    # is_random = True
-    # save_images = False
-    # alg_test(1000, 00.1, is_random, save_images)
+    is_random = True
+    save_images = False
+    alg(1000, 00.1, is_random, save_images)
     # gif_maker("Images", "order_formation")
