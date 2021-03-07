@@ -1,3 +1,5 @@
+import argparse
+
 from matplotlib import colors
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,20 +9,44 @@ import glob
 import imageio
 
 
-# Class that holds graph information and displays it
+# This is a useful method to see if a given string is trying to indicate a True or False Boolean. Taken from
+# stackexchange
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+# Class that holds graph information and displays it. Can also calculated standard deviation and mean.
 class Graph:
-    def variance(self, stab=0):
+    # Finds the standard deviation of the y-components of its data, ignoring the first few values (as specified by the
+    # "stab" variable)
+    def get_std_dev(self, stab=0):
+        # Error checking
         if stab > len(self.info[1]):
             stab = 0
             print("Stabilization estimate exceeded max number of iterations. Setting to 0")
         return stats.stdev(self.info[1][stab:])
 
-    # Method to allow people to record data
+    # Finds the mean of the y-component of its data, ignoring the first few values as specified by the stab argument
+    def get_mean(self, stab=0):
+        # Error Checking
+        if stab > len(self.info[1]):
+            stab = 0
+            print("Stabilization estimate exceeded max number of iterations. Setting to 0")
+        return stats.mean(self.info[1][stab:])
+
+    # Method to allow people to record data in the graph
     def graph_record(self, x, y):
         self.info[0].append(x)
         self.info[1].append(y)
 
-    # Changes the name of the plot
+    # Changes the name and axis labels of the plot
     def rename(self, title=None, x_label=None, y_label=None):
         if title is not None:
             self.title = title
@@ -29,14 +55,21 @@ class Graph:
         if y_label is not None:
             self.y_label = y_label
 
-    # Displays the plot to the user
-    def graphit(self):
+    # Displays the plot to the user. Caption is a string which can display useful information below the graph. I found
+    # captions useful when I wanted to display the temperature, number of iterations, or size of the magnet that the
+    # graph was associated with
+    def graphit(self, caption=None):
+        if caption is not None:
+            # plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment='center', fontsize=12)
+            plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment='center', fontsize=5)
+
         plt.title(self.title)
         plt.xlabel(self.x_label)
         plt.ylabel(self.y_label)
         plt.scatter(self.info[0][:], self.info[1][:])
         plt.show()
 
+    # Initializing a Graph. All of the data is held in the list of lists self.info
     def __init__(self, title="Insert title here", x_label="Iteration", y_label="Energy"):
         self.info = [[], []]
         self.title = title
@@ -44,23 +77,61 @@ class Graph:
         self.y_label = y_label
 
 
+# This is where all of the information about the magnet is stored. This class also has lots of methods that calculate
+# relevant thermodynamic quantities, and methods to store data for later viewing.
 class Magnet:
-    # Saves things in the graph so that we can remember them for later
+    # The functions at the beginning of the class mostly deal with calculating energy, magnetization, heat capacity,
+    # susceptibility, and the average of those quantities. Averages are calculated by using an associated instance
+    # of the Graph class, which stores past information which can be averaged over at a later point.
+
+    # Saves the energy and magnetization at a given iteration in the graph so that we can remember them for later
     def record_state(self, stab=500):
         self.energy_graph.graph_record(self.iteration, self.energy)
-        self.magnetization_graph.graph_record(self.iteration, 2 * self.num_up - self.x_dim * self.y_dim)
+        self.magnetization_graph.graph_record(self.iteration, self.magnetization())
         self.iteration += 1
+
+    # Finds the magnetization of the magnet (num up - num down = 2 * num up - total spins)
+    def magnetization(self):
+        return 2 * self.num_up - self.x_dim * self.y_dim
+
+    # Returns the average value of the y-component of the magnetization data, ignoring the first few data points
+    def get_avg_magnetization(self, stab=500):
+        return self.magnetization_graph.get_mean(stab)
+
+    # This method returns the field stored in self.energy. It should return the correct energy, and in a much shorter
+    # time than find_energy(), but depends on everything else correctly updating self.energy.
+    def get_energy(self):
+        return self.energy
+
+    # This method finds the average energy by using the data stored in self.energy_graph, ignoring the first few data
+    # points
+    def get_avg_energy(self, stab=500):
+        self.energy_graph.get_mean(stab)
+
+    # This method iterates through the entire magnet and calculates the energy of the whole system. It is used whenever
+    # a new magnet is created, and should never return a bad value
+    def find_energy(self):
+        energy = 0
+        for x_idx, row in enumerate(self.board):
+            for y_idx, element in enumerate(row):
+                if x_idx < self.x_dim - 1:
+                    energy -= self.board[x_idx, y_idx] * self.board[x_idx + 1, y_idx]
+                if y_idx < self.y_dim - 1:
+                    energy -= self.board[x_idx, y_idx] * self.board[x_idx, y_idx + 1]
+        return energy
+
+    # This method returns the heat capacity of the system, ignoring the first few data points
+    def heat_cap(self, temp, stab=500):
+        return self.energy_graph.get_std_dev(stab) / (temp ** 2)
+
+    # This method returns the magnetic susceptibility of the system, ignoring the first few data points
+    def susceptibility(self, temp, stab=500):
+        return self.magnetization_graph.get_std_dev(stab) / temp
 
     # Shows the magnetization and energy graphs
     def display_state(self):
         self.energy_graph.graphit()
         self.magnetization_graph.graphit()
-
-    def heat_cap(self, temp, stab=500):
-        return self.energy_graph.variance(100) / (temp ** 2)
-
-    def susceptibility(self, temp, stab=500):
-        return self.magnetization_graph.variance(100) / temp
 
     # Shows the magnet as a matplotlib display, with green as up and blue as down
     def display(self):
@@ -74,6 +145,7 @@ class Magnet:
 
         plt.show()
 
+    # This method saves the graphical representation of the magnet to the file given in fname
     def save_plot(self, fname):
         # Blue is down, green is up
         cmap = colors.ListedColormap(['blue', 'green'])
@@ -95,7 +167,17 @@ y-dimension " + str(self.y_dim))
         print(str(self.num_up) + " spins are up (" + str(self.num_up / num_spins * 100) + "% of the total)")
         print("Total energy of the magnet is " + str(self.energy) + '\n')
 
-    # Flips the specified spin, and updates the energy
+    # Returns the size of the magnet in the x-dimension
+    def get_x(self):
+        return self.x_dim
+
+    # Returns the size of the magnet in the y-dimension
+    def get_y(self):
+        return self.y_dim
+
+    # Flips the specified spin, and updates the energy. This does NOT implement the metropolis algorithm. When the
+    # Metropolis algorithm tests the energy of a certain spin configuration, it calls this method, checks the updated
+    # energy, and either leaves it like that or flips it back to the original state.
     def flip_spin(self, x, y):
         if x < 0 or x >= self.x_dim or y < 0 or y >= self.y_dim:
             print("invalid index")
@@ -113,15 +195,8 @@ y-dimension " + str(self.y_dim))
         if y > 0:
             self.energy -= self.board[x, y] * self.board[x, y - 1] * 2
 
-    def get_x(self):
-        return self.x_dim
-
-    def get_y(self):
-        return self.y_dim
-
-    def get_energy(self):
-        return self.energy
-
+    # Counts the total number of up spins by iterating through the entire board. Like find_energy(), it's fairly fool-
+    # proof, but slower than just relying on self.num_ups
     def count_ups(self):
         count = 0
         for x_idx, row in enumerate(self.board):
@@ -130,16 +205,8 @@ y-dimension " + str(self.y_dim))
                     count += 1
         return count
 
-    def find_energy(self):
-        energy = 0
-        for x_idx, row in enumerate(self.board):
-            for y_idx, element in enumerate(row):
-                if x_idx < self.x_dim - 1:
-                    energy -= self.board[x_idx, y_idx] * self.board[x_idx + 1, y_idx]
-                if y_idx < self.y_dim - 1:
-                    energy -= self.board[x_idx, y_idx] * self.board[x_idx, y_idx + 1]
-        return energy
-
+    # Generates a random mangnet of x by y dimensions, or uses a preset (I mostly ignore this feature though, and it's
+    # kind of since I stopped updating it a while ago, so I don't recommend playing around with it).
     def __init__(self, x, y, preset=[[-2]]):
         # This will record the information we need about energy
         self.energy_graph = Graph(title="Energy vs Iterations", x_label="Iteration", y_label="Energy")
@@ -170,6 +237,8 @@ on")
         self.energy = self.find_energy()
 
 
+# Method that was supposed to take in a bunch of images and output a gif. It's taken pretty much directly from the
+# internet, but I never managed to get it to produce fun videos, which is a bit of a shame.
 def gif_maker(dir, name):
     print(dir + "/*.png")
     file_list = glob.glob(dir + "/*.png")

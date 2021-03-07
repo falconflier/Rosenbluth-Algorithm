@@ -1,6 +1,8 @@
 from io import TextIOWrapper
 import numpy as np
-from magnet import Magnet
+from magnet import Magnet, Graph
+from magnet import str2bool
+import time
 
 # To avoid divide-by-zero errors
 epsilon = 1E-014
@@ -16,14 +18,15 @@ def r_r(num_iters, mag, temp, save_images=False, debug_file=None):
     for i in range(num_iters):
         if save_images and counter == 50:
             counter = 0
-            r_r_help(mag, temp, im_idx, debug_file)
+            r_r_iter(mag, temp, im_idx, debug_file)
             im_idx += 1
         else:
             counter += 1
-            r_r_help(mag, temp, None, debug_file)
+            r_r_iter(mag, temp, None, debug_file)
 
 
-def r_r_help(mag, temp, im_idx=None, debug=None):
+# Does one complete iteration of the R&R algorithm
+def r_r_iter(mag, temp, im_idx=None, debug=None):
     assert debug is None or isinstance(debug, TextIOWrapper)
     assert im_idx is None or (im_idx, int)
     initial = mag.get_energy()
@@ -71,7 +74,7 @@ def r_r_help(mag, temp, im_idx=None, debug=None):
 
 
 # Tries to run the rosenbluth algorithm
-def alg(num_itr, temp, x, y, random=True, is_saved=False):
+def alg(num_itr, temp, x, y, stab=500, display=True, random=True, is_saved=False):
     # Create a preset that is up on one half and down on the other
     if not random:
         preset = (-1 * np.ones([100, 100]))
@@ -83,8 +86,9 @@ def alg(num_itr, temp, x, y, random=True, is_saved=False):
         my_mag = Magnet(x, y)
 
     # Display the magnet and print info
-    # my_mag.gen_info()
-    # my_mag.display()
+    my_mag.gen_info()
+    if display:
+        my_mag.display()
 
     # File to print debug logs into. Will overwrite past error logs
     f = open("log.csv", "w")
@@ -110,14 +114,108 @@ def alg(num_itr, temp, x, y, random=True, is_saved=False):
     # Show magnet and print info
     # print(my_mag.energy_graph.find_exp_val(ignore=2000))
     # print(my_mag.energy_graph.find_var(ignore=2000))
-    # my_mag.gen_info()
-    print(my_mag.heat_cap(2000))
-    print(my_mag.susceptibility(2000))
-    my_mag.display()
-    my_mag.display_state()
+    my_mag.gen_info()
+    print("Heat Capacity of the magnet is: " + str(my_mag.heat_cap(stab)))
+    print("Magnetic Susceptibility of the magnet is: " + str(my_mag.susceptibility(stab)))
+    print("\n")
+    print(my_mag.heat_cap(stab))
+    print(my_mag.susceptibility(stab))
+    if display:
+        my_mag.display()
+        my_mag.display_state()
+
+
+# This method calculates thermodynamics quantities for a range of temperatures. As such, it can take quite a while!
+def var_temp(x, y, iter=1000, stab=500, temperatures=None, repl=False):
+    # This variable is a list of magnets. After obtaining information at every temperature, each magnet will be stored
+    # in here, and at the end there will be a REPL to debug what happened at every temperature.
+    debug = []
+    # If the user hasn't specified a temperature range, we'll use this preset one from T=0.4 to 4 with step size 0.1
+    if temperatures is None:
+        temperatures = np.arange(0.4, 4.1, 0.01)
+        # temperatures = np.arange(0.4, 4.1, 3)
+
+    # Total number of iterations
+    tot_its = len(temperatures)
+    # These graphs will keep track of heat capacity, magnetic susceptibility, average energy, and average magnetization
+    heat_graph = Graph(title="Heat Capacity as a Function of Temperature", x_label="Temperature", y_label="Heat Capacit\
+y")
+    sus_graph = Graph(title="Magnetic Susceptibility as a Function of Temperature", x_label="Temperature", y_label="Mag\
+netic susceptibility")
+    nrg_graph = Graph(title="Energy as a Function of Temperature", x_label="Temperature", y_label="Energy")
+    mag_graph = Graph(title="Magnetization as a Function of Temperature", x_label="Temperature", y_label="Magnetization")
+
+    # Begins iterating through each temperature
+    for i, temp in enumerate(temperatures):
+        # Useful to know how far through we are
+        print("iteration " + str(i) + " out of " + str(tot_its))
+        # Creates a magnet that will be used in this temperature iteration
+        mag = Magnet(x, y)
+        # iterates over the algorithm iter times
+        for idx in range(iter):
+            r_r_iter(mag, temp)
+
+        # if the user wants to debug at the end of the algorithm, they can set repl to True which will allow them
+        # to step through magnet of different temperatures
+        if repl:
+            debug.append(mag)
+
+        # Once it's done iteration, thermodynamic quantities of the magnet are recorded
+        nrg_graph.graph_record(temp, mag.get_avg_energy(stab=stab))
+        mag_graph.graph_record(temp, mag.get_avg_magnetization(stab=stab))
+        heat_graph.graph_record(temp, mag.heat_cap(temp, stab=stab))
+        sus_graph.graph_record(temp, mag.susceptibility(temp, stab=stab))
+
+    # This is a useful caption to keep track of images
+    label = str(x) + " by " + str(y) + " magnet, run through " + str(iter) + " iterations, with stability estimated to \
+occur at " + str(stab) + " iterations"
+    # Shows useful graphs of the energy, magnetization, heat capacity, and magnetic susceptibility at the end of the
+    # cycles
+    nrg_graph.graphit(caption=label)
+    mag_graph.graphit(caption=label)
+    heat_graph.graphit(caption=label)
+    sus_graph.graphit(caption=label)
+
+    # if the function explicitly specified that a REPL was not going to happen, there is no point in going further in
+    # this function.
+    if not repl:
+        return
+
+    # this is the debugging REPL. It should (if I'm not lazy and manage to implement it all the way through) let you
+    # examine magnets held at different temperatures after they went through the R&R algorithm
+    print("Entering the REPL. Lets you examine magnets of different temperatures. Type \"Quit\" or \"Exit\" if you wish\
+ to, well, exit")
+    while True:
+        # total number of magnets
+        num_mags = len(debug)
+        buf = input("There are " + str(num_mags) + " Magnets. Enter a value between 0 and " + str(num_mags) + " to \
+see information about that magnet")
+        low = buf.lower()
+        # Quits the REPL if the user specifies
+        if low == "quit" or low == "exit":
+            break
+        # Error checking the input
+        elif isinstance(buf, int):
+            print("Please enter a valid integer")
+            time.sleep(0.3)
+            continue
+        elif int(buf) > num_mags:
+            print("integer is too large")
+            time.sleep(0.3)
+            continue
+
+        # the magnet of interest
+        cool_mag = debug[int(buf)]
+        cool_mag.gen_info()
+        cool_mag.display()
 
 
 if __name__ == '__main__':
-    is_random = True
-    save_images = False
-    alg(100000, 0.01, 100, 100, is_random, save_images)
+    # Change in energy is a multiple of 4 (0, 4, 8)
+    # Change in magnetization is a multiple of 2 (-2 or 2)
+    # More than 1000000 (1 million) iterations for var_temp takes too long
+    # temps = np.ones(30) * 2
+    var_temp(10, 10, iter=100000, stab=2000, repl=True)
+    # is_random = True
+    # save_images = False
+    # alg(10000, 0.4, 10, 10, display=False, stab=2000)
