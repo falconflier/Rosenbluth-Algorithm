@@ -223,6 +223,15 @@ on")
         self.energy = self.find_energy()
 
 
+# Taken from the web. See if something is an integer
+def is_int(val):
+    try:
+        num = int(val)
+    except ValueError:
+        return False
+    return True
+
+
 # This is a useful method to see if a given string is trying to indicate a True or False Boolean. Taken from
 # stackexchange
 def str2bool(v):

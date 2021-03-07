@@ -1,7 +1,8 @@
 from io import TextIOWrapper
 import numpy as np
-from magnet import Magnet, Graph
+from magnet import Magnet, Graph, is_int
 import time
+import threading
 
 # To avoid divide-by-zero errors
 epsilon = 1E-014
@@ -126,27 +127,30 @@ occur at " + str(stab) + " iterations"
         # total number of magnets
         num_mags = len(debug)
         buf = input("There are " + str(num_mags) + " Magnets. Enter a value between 0 and " + str(num_mags - 1) + " to \
-see information about that magnet")
+see information about that magnet. Alternatively, enter \"repeat\" to see the same graphs again")
         low = buf.lower()
         # Quits the REPL if the user specifies
         if low == "quit" or low == "exit":
             break
+        elif low == "repeat":
+            nrg_graph.graphit(caption=label)
+            mag_graph.graphit(caption=label)
+            heat_graph.graphit(caption=label)
+            sus_graph.graphit(caption=label)
         # Error checking the input
-        elif isinstance(buf, int):
-            print("Please enter a valid integer")
+        elif is_int(buf) and int(buf) >= num_mags:
+            print("integer is too large, please try again")
             time.sleep(0.3)
             continue
-        elif int(buf) >= num_mags:
-            print("integer is too large")
-            time.sleep(0.3)
-            continue
-
-        # the magnet of interest
-        cool_mag = debug[int(buf)]
-        cool_mag.gen_info()
-        print("The temperature of this magnet was " + str(temperatures[int(buf)]))
-        cool_mag.display()
-        cool_mag.display_state()
+        elif is_int(buf):
+            # the magnet of interest
+            cool_mag = debug[int(buf)]
+            cool_mag.gen_info()
+            print("The temperature of this magnet was " + str(temperatures[int(buf)]))
+            cool_mag.display()
+            cool_mag.display_state()
+        else:
+            print("Invalid input. Please try again")
 
 
 if __name__ == '__main__':
