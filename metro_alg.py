@@ -1,28 +1,10 @@
 from io import TextIOWrapper
 import numpy as np
 from magnet import Magnet, Graph
-from magnet import str2bool
 import time
 
 # To avoid divide-by-zero errors
 epsilon = 1E-014
-
-
-def r_r(num_iters, mag, temp, save_images=False, debug_file=None):
-    assert debug_file is None or isinstance(debug_file, TextIOWrapper)
-    assert isinstance(temp, (np.floating, float, int))
-    assert isinstance(num_iters, int)
-
-    counter = 0
-    im_idx = 0
-    for i in range(num_iters):
-        if save_images and counter == 50:
-            counter = 0
-            r_r_iter(mag, temp, im_idx, debug_file)
-            im_idx += 1
-        else:
-            counter += 1
-            r_r_iter(mag, temp, None, debug_file)
 
 
 # Does one complete iteration of the R&R algorithm
@@ -73,58 +55,6 @@ def r_r_iter(mag, temp, im_idx=None, debug=None):
     return
 
 
-# Tries to run the rosenbluth algorithm
-def alg(num_itr, temp, x, y, stab=500, display=True, random=True, is_saved=False):
-    # Create a preset that is up on one half and down on the other
-    if not random:
-        preset = (-1 * np.ones([100, 100]))
-        for i in range(50):
-            np.put(preset[i], [np.arange(100)], [1])
-        my_mag = Magnet(100, 100, preset)
-    # Otherwise generate a random magnet
-    else:
-        my_mag = Magnet(x, y)
-
-    # Display the magnet and print info
-    my_mag.gen_info()
-    if display:
-        my_mag.display()
-
-    # File to print debug logs into. Will overwrite past error logs
-    f = open("log.csv", "w")
-    output = []
-    # Write a first line (useful to remember what each column is)
-    f.write(str(["temp", "x", "y", "delta_E", "What Happened", "random value", "Boltzmann factor"]) + '\n')
-    # Variables to find the average of the boltzmann sums
-    boltz_sum = 0
-    idx = 0
-
-    # Runs the algorithm for a given number of iterations, magnet, and temperature
-    r_r(num_itr, my_mag, temp, is_saved, f)
-    f.close()
-
-    # Counting up all the times that a boltzmann factor had to be used, to find the average
-    if len(output) > 0 and isinstance(output[-1], np.floating):
-        boltz_sum += output[-1]
-        idx += 1
-    # If at least one boltzmann factor was encountered, returns the average
-    if idx > 0:
-        print("Average of the boltzmann factors is " + str(boltz_sum / idx))
-
-    # Show magnet and print info
-    # print(my_mag.energy_graph.find_exp_val(ignore=2000))
-    # print(my_mag.energy_graph.find_var(ignore=2000))
-    my_mag.gen_info()
-    print("Heat Capacity of the magnet is: " + str(my_mag.heat_cap(stab)))
-    print("Magnetic Susceptibility of the magnet is: " + str(my_mag.susceptibility(stab)))
-    print("\n")
-    print(my_mag.heat_cap(stab))
-    print(my_mag.susceptibility(stab))
-    if display:
-        my_mag.display()
-        my_mag.display_state()
-
-
 # This method calculates thermodynamics quantities for a range of temperatures. As such, it can take quite a while!
 def var_temp(x, y, iter=1000, stab=500, temperatures=None, repl=False):
     # This variable is a list of magnets. After obtaining information at every temperature, each magnet will be stored
@@ -133,7 +63,6 @@ def var_temp(x, y, iter=1000, stab=500, temperatures=None, repl=False):
     # If the user hasn't specified a temperature range, we'll use this preset one from T=0.4 to 4 with step size 0.1
     if temperatures is None:
         temperatures = np.arange(0.4, 4.1, 0.01)
-        # temperatures = np.arange(0.4, 4.1, 3)
 
     # Total number of iterations
     tot_its = len(temperatures)
@@ -145,10 +74,13 @@ netic susceptibility")
     nrg_graph = Graph(title="Energy as a Function of Temperature", x_label="Temperature", y_label="Energy")
     mag_graph = Graph(title="Magnetization as a Function of Temperature", x_label="Temperature", y_label="Magnetization")
 
+    # Tells us the beginning time
+    start = time.time()
+
     # Begins iterating through each temperature
     for i, temp in enumerate(temperatures):
         # Useful to know how far through we are
-        print("iteration " + str(i) + " out of " + str(tot_its))
+        print("iteration " + str(i) + " out of " + str(tot_its - 1))
         # Creates a magnet that will be used in this temperature iteration
         mag = Magnet(x, y)
         # iterates over the algorithm iter times
@@ -165,6 +97,11 @@ netic susceptibility")
         mag_graph.graph_record(temp, mag.get_avg_magnetization(stab=stab))
         heat_graph.graph_record(temp, mag.heat_cap(temp, stab=stab))
         sus_graph.graph_record(temp, mag.susceptibility(temp, stab=stab))
+
+    # records when the iterations have finished
+    end = time.time()
+
+    print("Time taken to iterate is " + str(end - start) + " seconds")
 
     # This is a useful caption to keep track of images
     label = str(x) + " by " + str(y) + " magnet, run through " + str(iter) + " iterations, with stability estimated to \
@@ -188,7 +125,7 @@ occur at " + str(stab) + " iterations"
     while True:
         # total number of magnets
         num_mags = len(debug)
-        buf = input("There are " + str(num_mags) + " Magnets. Enter a value between 0 and " + str(num_mags) + " to \
+        buf = input("There are " + str(num_mags) + " Magnets. Enter a value between 0 and " + str(num_mags - 1) + " to \
 see information about that magnet")
         low = buf.lower()
         # Quits the REPL if the user specifies
@@ -199,7 +136,7 @@ see information about that magnet")
             print("Please enter a valid integer")
             time.sleep(0.3)
             continue
-        elif int(buf) > num_mags:
+        elif int(buf) >= num_mags:
             print("integer is too large")
             time.sleep(0.3)
             continue
@@ -207,15 +144,13 @@ see information about that magnet")
         # the magnet of interest
         cool_mag = debug[int(buf)]
         cool_mag.gen_info()
+        print("The temperature of this magnet was " + str(temperatures[int(buf)]))
         cool_mag.display()
+        cool_mag.display_state()
 
 
 if __name__ == '__main__':
     # Change in energy is a multiple of 4 (0, 4, 8)
     # Change in magnetization is a multiple of 2 (-2 or 2)
     # More than 1000000 (1 million) iterations for var_temp takes too long
-    # temps = np.ones(30) * 2
     var_temp(10, 10, iter=100000, stab=2000, repl=True)
-    # is_random = True
-    # save_images = False
-    # alg(10000, 0.4, 10, 10, display=False, stab=2000)

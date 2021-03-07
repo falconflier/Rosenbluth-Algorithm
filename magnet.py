@@ -1,25 +1,11 @@
 import argparse
-
+from io import TextIOWrapper
 from matplotlib import colors
 import numpy as np
 import matplotlib.pyplot as plt
-# from scipy.stats import stats
 import statistics as stats
 import glob
 import imageio
-
-
-# This is a useful method to see if a given string is trying to indicate a True or False Boolean. Taken from
-# stackexchange
-def str2bool(v):
-    if isinstance(v, bool):
-       return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 # Class that holds graph information and displays it. Can also calculated standard deviation and mean.
@@ -237,6 +223,19 @@ on")
         self.energy = self.find_energy()
 
 
+# This is a useful method to see if a given string is trying to indicate a True or False Boolean. Taken from
+# stackexchange
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 # Method that was supposed to take in a bunch of images and output a gif. It's taken pretty much directly from the
 # internet, but I never managed to get it to produce fun videos, which is a bit of a shame.
 def gif_maker(dir, name):
@@ -260,3 +259,81 @@ def gif_maker(dir, name):
             # print(filename)
             image = imageio.imread(filename)
             writer.append_data(image)
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Everything below this line is old methods that aren't used anymore, but which are good references for me so I don't
+# want to delete them.
+
+# Tries to run the rosenbluth algorithm. This is an old method that I didn't want cluttering up the algorithm file.
+def alg(num_itr, temp, x, y, stab=500, display=True, random=True, is_saved=False):
+    # Create a preset that is up on one half and down on the other
+    if not random:
+        preset = (-1 * np.ones([100, 100]))
+        for i in range(50):
+            np.put(preset[i], [np.arange(100)], [1])
+        my_mag = Magnet(100, 100, preset)
+    # Otherwise generate a random magnet
+    else:
+        my_mag = Magnet(x, y)
+
+    # Display the magnet and print info
+    my_mag.gen_info()
+    if display:
+        my_mag.display()
+
+    # File to print debug logs into. Will overwrite past error logs
+    f = open("log.csv", "w")
+    output = []
+    # Write a first line (useful to remember what each column is)
+    f.write(str(["temp", "x", "y", "delta_E", "What Happened", "random value", "Boltzmann factor"]) + '\n')
+    # Variables to find the average of the boltzmann sums
+    boltz_sum = 0
+    idx = 0
+
+    # Runs the algorithm for a given number of iterations, magnet, and temperature
+    r_r(num_itr, my_mag, temp, is_saved, f)
+    f.close()
+
+    # Counting up all the times that a boltzmann factor had to be used, to find the average
+    if len(output) > 0 and isinstance(output[-1], np.floating):
+        boltz_sum += output[-1]
+        idx += 1
+    # If at least one boltzmann factor was encountered, returns the average
+    if idx > 0:
+        print("Average of the boltzmann factors is " + str(boltz_sum / idx))
+
+    # Show magnet and print info
+    # print(my_mag.energy_graph.find_exp_val(ignore=2000))
+    # print(my_mag.energy_graph.find_var(ignore=2000))
+    my_mag.gen_info()
+    print("Heat Capacity of the magnet is: " + str(my_mag.heat_cap(stab)))
+    print("Magnetic Susceptibility of the magnet is: " + str(my_mag.susceptibility(stab)))
+    print("\n")
+    print(my_mag.heat_cap(stab))
+    print(my_mag.susceptibility(stab))
+    if display:
+        my_mag.display()
+        my_mag.display_state()
+
+
+def r_r(num_iters, mag, temp, save_images=False, debug_file=None):
+    assert debug_file is None or isinstance(debug_file, TextIOWrapper)
+    assert isinstance(temp, (np.floating, float, int))
+    assert isinstance(num_iters, int)
+
+    counter = 0
+    im_idx = 0
+    for i in range(num_iters):
+        if save_images and counter == 50:
+            counter = 0
+            r_r_iter(mag, temp, im_idx, debug_file)
+            im_idx += 1
+        else:
+            counter += 1
+            r_r_iter(mag, temp, None, debug_file)
+
+
+# I can't do a circular import, so I created this dummy method to avoid problems in r_r()
+def r_r_iter(mag, temp, im_idx, debug_file):
+    pass
