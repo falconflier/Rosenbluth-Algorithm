@@ -157,6 +157,10 @@ ets to external files, type \"save\"")
             print("integer is too large, please try again")
             time.sleep(0.3)
             continue
+        elif is_int(buf) and int(buf) < 0:
+            print("integer must be positive, please try again")
+            time.sleep(0.3)
+            continue
         elif is_int(buf):
             # the magnet of interest
             cool_mag = debug[int(buf)]
@@ -188,4 +192,7 @@ if __name__ == '__main__':
     # Change in energy is a multiple of 4 (0, 4, 8)
     # Change in magnetization is a multiple of 2 (-2 or 2)
     # More than 1000000 (1 million) iterations for var_temp takes too long
-    var_temp(10, 10, iter=100000, stab=2000, repl=True)
+    four_temps = np.arange(0.4, 4.01, 1.2)
+    one_temp = [4]
+    var_temp(1000, 1000, iter=1000000, stab=2000, repl=True)
+    # var_temp(1000, 1000, iter=10000000, stab=2000, repl=True, temperatures=one_temp)

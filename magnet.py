@@ -92,7 +92,8 @@ class Magnet:
     # This method finds the average energy by using the data stored in self.energy_graph, ignoring the first few data
     # points
     def get_avg_energy(self, stab=500):
-        self.energy_graph.get_mean(stab)
+        # print("average energy is: " + str(self.energy_graph.get_mean(stab)))
+        return self.energy_graph.get_mean(stab)
 
     # This method iterates through the entire magnet and calculates the energy of the whole system. It is used whenever
     # a new magnet is created, and should never return a bad value
