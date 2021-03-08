@@ -1,8 +1,8 @@
+import pickle
 from io import TextIOWrapper
 import numpy as np
 from magnet import Magnet, Graph, is_int
 import time
-import threading
 
 # To avoid divide-by-zero errors
 epsilon = 1E-014
@@ -64,6 +64,7 @@ def var_temp(x, y, iter=1000, stab=500, temperatures=None, repl=False):
     # If the user hasn't specified a temperature range, we'll use this preset one from T=0.4 to 4 with step size 0.1
     if temperatures is None:
         temperatures = np.arange(0.4, 4.1, 0.01)
+        # temperatures = np.arange(0.4, 4.1, 3)
 
     # Total number of iterations
     tot_its = len(temperatures)
@@ -73,7 +74,8 @@ y")
     sus_graph = Graph(title="Magnetic Susceptibility as a Function of Temperature", x_label="Temperature", y_label="Mag\
 netic susceptibility")
     nrg_graph = Graph(title="Energy as a Function of Temperature", x_label="Temperature", y_label="Energy")
-    mag_graph = Graph(title="Magnetization as a Function of Temperature", x_label="Temperature", y_label="Magnetization")
+    mag_graph = Graph(title="Magnetization as a Function of Temperature", x_label="Temperature",
+                      y_label="Magnetization")
 
     # Tells us the beginning time
     start = time.time()
@@ -122,12 +124,11 @@ occur at " + str(stab) + " iterations"
     # this is the debugging REPL. It should (if I'm not lazy and manage to implement it all the way through) let you
     # examine magnets held at different temperatures after they went through the R&R algorithm
     print("Entering the REPL. Lets you examine magnets of different temperatures. Type \"Quit\" or \"Exit\" if you wish\
- to, well, exit")
+ to, well, exit. Type \"help\" for help")
     while True:
         # total number of magnets
         num_mags = len(debug)
-        buf = input("There are " + str(num_mags) + " Magnets. Enter a value between 0 and " + str(num_mags - 1) + " to \
-see information about that magnet. Alternatively, enter \"repeat\" to see the same graphs again")
+        buf = input(">> ")
         low = buf.lower()
         # Quits the REPL if the user specifies
         if low == "quit" or low == "exit":
@@ -137,6 +138,20 @@ see information about that magnet. Alternatively, enter \"repeat\" to see the sa
             mag_graph.graphit(caption=label)
             heat_graph.graphit(caption=label)
             sus_graph.graphit(caption=label)
+        elif low == "save":
+            # Save the graphs
+            save_instance(nrg_graph, "Magnets/energy")
+            save_instance(mag_graph, "Magnets/magnetization")
+            save_instance(heat_graph, "Magnets/heat_cap")
+            save_instance(sus_graph, "Magnets/susceptibility")
+            # Save the magnets
+            for i, saved_mag in enumerate(debug):
+                file_path = "Magnets/magnet_temp" + str(temperatures[i])
+                save_instance(saved_mag, file_path)
+        elif low == "help" or low == 'h':
+            print("There are " + str(num_mags) + " Magnets. Enter a value between 0 and " + str(num_mags - 1) + " to \
+see information about that magnet. Alternatively, enter \"repeat\" to see the same graphs again.\n To save all the magn\
+ets to external files, type \"save\"")
         # Error checking the input
         elif is_int(buf) and int(buf) >= num_mags:
             print("integer is too large, please try again")
@@ -151,6 +166,22 @@ see information about that magnet. Alternatively, enter \"repeat\" to see the sa
             cool_mag.display_state()
         else:
             print("Invalid input. Please try again")
+
+
+# Saves an instance of a magnet to an external file
+def save_instance(mag, filename):
+    f = open(filename, 'wb')
+    pickle.dump(mag, f)
+    f.close()
+
+
+# Loads an instance of a magnet from an external file
+def load_instance(filename):
+    # infile = open("Magnets", 'rb')
+    infile = open(filename, 'rb')
+    new_mag = pickle.load(infile)
+    infile.close()
+    return new_mag
 
 
 if __name__ == '__main__':
